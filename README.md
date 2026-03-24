@@ -1,30 +1,34 @@
 # TicketSystem
 
-`TicketSystem` is a lightweight Minecraft ticket plugin for Spigot/Paper servers.
+![TicketSystem Banner](assets/ticketsystem-modrinth-banner.png)
 
-Players can create a support ticket with `/ac <message>`, and staff members with permission can accept it, answer directly through chat, and close it automatically after the reply is sent.
+Lightweight in-game ticket handling for Minecraft servers.
 
-The plugin is designed for servers that need a simple in-game support workflow without external services or complex setup.
+`TicketSystem` lets players contact staff with a single command and gives moderators a fast workflow to accept tickets, reply through chat, and close them automatically.
+
+## Preview
+
+<p align="center">
+  <img src="assets/ticketsystem-icon.png" alt="TicketSystem Icon" width="180" />
+</p>
 
 ## Features
 
-- Player ticket creation with `/ac <message>`
-- Instant notification for online staff
-- Quick accept button in chat
-- Ticket GUI panel with `/tickets`
-- Chat-based replies to the player
-- Automatic ticket closing after reply
-- Reminder system for unanswered tickets
-- Auto-release if a ticket is held too long
-- One active ticket per player
-- Optional `StaffWork` integration:
-  - staff can still see new tickets
-  - accepting and replying can be restricted to active shifts
+- Create player tickets with `/ac <message>`
+- Notify online staff instantly when a new ticket is created
+- Accept tickets directly from chat
+- Manage open tickets in a GUI panel with `/tickets`
+- Reply to the player through normal chat
+- Close the ticket automatically after the reply
+- Remind staff about unanswered tickets
+- Auto-release tickets if they stay in progress too long
+- Limit players to one active ticket at a time
+- Optional `StaffWork` integration for shift-based ticket handling
 
 ## Compatibility
 
 - Minecraft `1.16.5` to `1.21.11`
-- Spigot / Paper based servers
+- Spigot / Paper servers
 - Java `11+`
 
 ## Commands
@@ -35,29 +39,42 @@ The plugin is designed for servers that need a simple in-game support workflow w
 
 ## Permission
 
-- `ticketsystem.admin` - access to ticket handling and ticket panel
+- `ticketsystem.admin` - access to ticket panel and ticket handling
 
 ## How It Works
 
-1. A player creates a ticket with `/ac <message>`.
-2. Online staff members receive a notification.
+1. A player writes `/ac <message>`.
+2. Online staff receive a notification.
 3. A staff member accepts the ticket from chat or from the GUI panel.
 4. The staff member writes a normal chat message.
-5. That chat message is sent to the player as the ticket answer.
+5. The player receives the answer.
 6. The ticket closes automatically.
+
+## StaffWork Integration
+
+If [`StaffWork`](https://github.com/blackcago1377) is present on the server, `TicketSystem` can check whether a staff member is currently on shift.
+
+In this mode:
+
+- staff still receive notifications about new tickets
+- ticket answering can be restricted to active shifts
+
+If `StaffWork` is not installed, `TicketSystem` works as a standalone plugin.
 
 ## Configuration
 
-Main settings are stored in [`src/main/resources/config.yml`](/C:/Users/artem/Desktop/test/TicketSystem/src/main/resources/config.yml).
+Main config:
 
-Available configuration includes:
+- [`src/main/resources/config.yml`](src/main/resources/config.yml)
+
+You can configure:
 
 - admin permission node
 - reminder interval
 - auto-release time
-- GUI messages
+- GUI text
 - ticket messages
-- shift-required messages for `StaffWork` integration
+- optional shift-required messages
 
 ## Build
 
@@ -66,36 +83,33 @@ Requirements:
 - Java `11` or newer
 - Maven
 
-Build command:
+Build:
 
 ```bash
 mvn clean package
 ```
 
-Compiled jar:
+Output:
 
-- [`target/TicketSystem-1.0.0.jar`](/C:/Users/artem/Desktop/test/TicketSystem/target/TicketSystem-1.0.0.jar)
+- `target/TicketSystem-1.0.0.jar`
 
 ## Source Structure
 
-- [`src/main/java/me/kawasaki/tickets/TicketSystemPlugin.java`](/C:/Users/artem/Desktop/test/TicketSystem/src/main/java/me/kawasaki/tickets/TicketSystemPlugin.java) - main plugin logic, commands, GUI, reminders, ticket handling
-- [`src/main/java/me/kawasaki/tickets/models/Ticket.java`](/C:/Users/artem/Desktop/test/TicketSystem/src/main/java/me/kawasaki/tickets/models/Ticket.java) - ticket data model
-- [`src/main/resources/plugin.yml`](/C:/Users/artem/Desktop/test/TicketSystem/src/main/resources/plugin.yml) - plugin metadata and commands
-- [`src/main/resources/config.yml`](/C:/Users/artem/Desktop/test/TicketSystem/src/main/resources/config.yml) - plugin configuration
+- [`src/main/java/me/kawasaki/tickets/TicketSystemPlugin.java`](src/main/java/me/kawasaki/tickets/TicketSystemPlugin.java) - main plugin logic, commands, GUI, reminders, ticket handling
+- [`src/main/java/me/kawasaki/tickets/models/Ticket.java`](src/main/java/me/kawasaki/tickets/models/Ticket.java) - ticket data model
+- [`src/main/resources/plugin.yml`](src/main/resources/plugin.yml) - plugin metadata
+- [`src/main/resources/config.yml`](src/main/resources/config.yml) - plugin configuration
 
-## StaffWork Integration
+## Installation
 
-If `StaffWork` is installed on the server, `TicketSystem` can check whether a staff member is currently on shift.
-
-In this mode:
-
-- staff still receive notifications about new tickets
-- staff can be restricted from accepting or answering tickets while off shift
-
-If `StaffWork` is not installed, `TicketSystem` works as a standalone plugin.
+1. Build the project with Maven or use the compiled jar.
+2. Put `TicketSystem-1.0.0.jar` into your server `plugins` folder.
+3. Start the server.
+4. Edit the generated config if needed.
+5. Restart or reload the plugin properly through a full server restart.
 
 ## Notes
 
-- The plugin stores ticket data in its config file.
-- Console can manage the plugin as admin where applicable.
-- The plugin uses a simple workflow intentionally to keep moderation fast and clear.
+- Ticket data is stored in the plugin config.
+- The plugin is intentionally simple and focused on fast moderation workflow.
+- Console is treated as admin where applicable.

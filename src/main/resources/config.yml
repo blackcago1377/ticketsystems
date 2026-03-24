@@ -1,15 +1,15 @@
-# Настройки системы тикетов
+# Ticket system settings
 
-# Права доступа (permission) для администраторов
+# Permission node for staff members
 admin-permission: ticketsystem.admin
 
-# Время в секундах, через которое администратору напомнят о тикете
+# Time in seconds before a staff member gets a reminder about an active ticket
 reminder-interval: 60
 
-# Время в секундах, через которое тикет автоматически освобождается от администратора
+# Time in seconds before an accepted ticket is released automatically
 auto-release-time: 300
 
-# Сообщения
+# Messages
 messages:
   ticket-created: "&aYour ticket has been created! Please wait for a staff response."
   ticket-exists: "&cYou already have an active ticket. Please wait for a reply."

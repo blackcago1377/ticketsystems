@@ -2,9 +2,8 @@ name: TicketSystem
 version: 1.0.0
 main: me.kawasaki.tickets.TicketSystemPlugin
 api-version: 1.16
-author: Kawasaki
+author: blackcago03
 description: Ticket system for players to contact administrators
-softdepend: [StaffWork]
 
 commands:
   ac:

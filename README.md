@@ -23,7 +23,6 @@ Lightweight in-game ticket handling for Minecraft servers.
 - Remind staff about unanswered tickets
 - Auto-release tickets if they stay in progress too long
 - Limit players to one active ticket at a time
-- Optional `StaffWork` integration for shift-based ticket handling
 
 ## Compatibility
 
@@ -50,17 +49,6 @@ Lightweight in-game ticket handling for Minecraft servers.
 5. The player receives the answer.
 6. The ticket closes automatically.
 
-## StaffWork Integration
-
-If [`StaffWork`](https://github.com/blackcago1377) is present on the server, `TicketSystem` can check whether a staff member is currently on shift.
-
-In this mode:
-
-- staff still receive notifications about new tickets
-- ticket answering can be restricted to active shifts
-
-If `StaffWork` is not installed, `TicketSystem` works as a standalone plugin.
-
 ## Configuration
 
 Main config:
@@ -74,7 +62,6 @@ You can configure:
 - auto-release time
 - GUI text
 - ticket messages
-- optional shift-required messages
 
 ## Build
 

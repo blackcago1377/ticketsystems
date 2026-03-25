@@ -1,4 +1,10 @@
-# Ticket system settings
+# Main plugin settings
+
+# Default plugin language.
+# Built-in languages:
+# - en
+# - ru
+language: en
 
 # Permission node for staff members
 admin-permission: ticketsystem.admin
@@ -8,25 +14,3 @@ reminder-interval: 60
 
 # Time in seconds before an accepted ticket is released automatically
 auto-release-time: 300
-
-# Messages
-messages:
-  ticket-created: "&aYour ticket has been created! Please wait for a staff response."
-  ticket-exists: "&cYou already have an active ticket. Please wait for a reply."
-  ticket-accepted-player: "&aStaff member &e{admin} &ahas accepted your ticket!"
-  ticket-closed: "&aYour ticket has been closed by a staff member."
-  ticket-reminder-admin: "&eYou have an active ticket from player &c{player}&e. Please answer it!"
-  ticket-released: "&cTicket from player &e{player} &chas been released because no reply was sent in time."
-  no-ticket: "&cYou do not have an active ticket."
-  admin-only: "&cThis command is only available to staff members."
-  shift-required-notice: "&7To answer tickets, start your shift first: &e/sw on"
-  shift-required-accept: "&cTo accept tickets, start your shift first: &e/sw on"
-  shift-required-reply: "&cTo reply to tickets, start your shift first: &e/sw on"
-  ticket-panel-title: "&6Ticket Panel"
-  ticket-item-name: "&eTicket from &c{player}"
-  ticket-item-lore:
-    - "&7Question: &f{question}"
-    - "&7Status: &a{status}"
-    - ""
-    - "&aClick to accept this ticket"
-  no-tickets: "&cThere are no available tickets."

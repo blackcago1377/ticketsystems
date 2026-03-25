@@ -16,6 +16,7 @@ import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.RemoteConsoleCommandSender;
 import org.bukkit.command.TabExecutor;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -30,8 +31,11 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.io.File;
+import java.io.InputStreamReader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -53,10 +57,15 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
 
     private org.bukkit.NamespacedKey ticketIdKey;
     private org.bukkit.NamespacedKey navKey;
+    private FileConfiguration langConfig;
+    private String currentLanguage;
     
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        saveBundledLanguage("en");
+        saveBundledLanguage("ru");
+        loadLanguage();
         loadTickets();
 
         ticketIdKey = new org.bukkit.NamespacedKey(this, "ticket_id");
@@ -76,7 +85,7 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         // Задача для автоматического освобождения тикетов
         autoReleaseTask = getServer().getScheduler().runTaskTimer(this, this::checkAutoRelease, 20L, 20L);
         
-        getLogger().info("TicketSystem включен!");
+        getLogger().info(rawLang("logs.enabled", "TicketSystem enabled."));
     }
     
     @Override
@@ -88,14 +97,14 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
             autoReleaseTask.cancel();
         }
         saveTickets();
-        getLogger().info("TicketSystem выключен!");
+        getLogger().info(rawLang("logs.disabled", "TicketSystem disabled."));
     }
     
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("ac")) {
             if (!(sender instanceof Player)) {
-                sender.sendMessage(ChatColor.RED + "Эта команда доступна только игрокам.");
+                sender.sendMessage(lang("messages.players-only", "&cThis command is only available to players."));
                 return true;
             }
             
@@ -105,13 +114,13 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
             if (playerTickets.containsKey(player.getUniqueId())) {
                 Ticket existingTicket = tickets.get(playerTickets.get(player.getUniqueId()));
                 if (existingTicket != null && existingTicket.getStatus() != TicketStatus.CLOSED) {
-                    player.sendMessage(color(getConfig().getString("messages.ticket-exists", "&cУ вас уже есть активный тикет.")));
+                    player.sendMessage(lang("messages.ticket-exists", "&cYou already have an active ticket."));
                     return true;
                 }
             }
             
             if (args.length == 0) {
-                player.sendMessage(color("&cИспользование: /ac [ТЕКСТ]"));
+                player.sendMessage(lang("messages.ac-usage", "&cUsage: /ac <message>"));
                 return true;
             }
             
@@ -122,20 +131,20 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         
         if (command.getName().equalsIgnoreCase("tickets")) {
             if (!(sender instanceof Player)) {
-                sender.sendMessage(ChatColor.RED + "Эта команда доступна только игрокам.");
+                sender.sendMessage(lang("messages.players-only", "&cThis command is only available to players."));
                 return true;
             }
             
             Player player = (Player) sender;
             
             if (!isAdmin(player)) {
-                player.sendMessage(color(getConfig().getString("messages.admin-only", "&cЭта команда доступна только администраторам.")));
+                player.sendMessage(lang("messages.admin-only", "&cThis command is only available to staff members."));
                 return true;
             }
             
             if (args.length > 0 && args[0].equalsIgnoreCase("accept")) {
                 if (args.length < 2) {
-                    player.sendMessage(color("&cИспользование: /tickets accept <playerId>"));
+                    player.sendMessage(lang("messages.tickets-accept-usage", "&cUsage: /tickets accept <player-uuid>"));
                     return true;
                 }
                 if (!canHandleTicketsNow(player, true)) {
@@ -147,38 +156,38 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
                     Ticket ticket = tickets.get(playerId);
                     
                     if (ticket == null) {
-                        player.sendMessage(color("&cТикет не найден."));
+                        player.sendMessage(lang("messages.ticket-not-found", "&cTicket not found."));
                         return true;
                     }
                     
                     if (ticket.getStatus() == TicketStatus.CLOSED) {
-                        player.sendMessage(color("&cЭтот тикет уже закрыт."));
+                        player.sendMessage(lang("messages.ticket-already-closed", "&cThis ticket is already closed."));
                         return true;
                     }
 
                     // Жёсткое правило: кто первый принял тикет — тот и будет его обрабатывать
                     if (ticket.getStatus() == TicketStatus.IN_PROGRESS) {
                         if (ticket.getAdminId() != null && !ticket.getAdminId().equals(player.getUniqueId())) {
-                            player.sendMessage(color("&cЭтот тикет уже принят другим администратором."));
+                            player.sendMessage(lang("messages.ticket-owned-by-other", "&cThis ticket has already been accepted by another staff member."));
                             return true;
                         }
                         // Если это тот же админ — просто сообщаем и показываем вопрос
                         if (ticket.getAdminId() != null && ticket.getAdminId().equals(player.getUniqueId())) {
-                            player.sendMessage(color("&eВы уже приняли этот тикет."));
-                            player.sendMessage(color("&7Вопрос: &f" + ticket.getQuestion()));
-                            player.sendMessage(color("&7Напишите ответ в чат, чтобы закрыть тикет."));
+                            player.sendMessage(lang("messages.ticket-already-accepted-self", "&eYou have already accepted this ticket."));
+                            player.sendMessage(lang("messages.ticket-question-line", "&7Question: &f{question}", mapOf("question", ticket.getQuestion())));
+                            player.sendMessage(lang("messages.ticket-reply-in-chat", "&7Write your reply in chat to answer this ticket."));
                             return true;
                         }
                     }
                     
                     if (adminTickets.containsKey(player.getUniqueId()) && !adminTickets.get(player.getUniqueId()).equals(ticket.getPlayerId())) {
-                        player.sendMessage(color("&cУ вас уже есть активный тикет. Закройте его, чтобы принять новый."));
+                        player.sendMessage(lang("messages.admin-has-active-ticket", "&cYou already have an active ticket. Close it before accepting another one."));
                         return true;
                     }
                     
                     acceptTicket(ticket, player);
                 } catch (IllegalArgumentException e) {
-                    player.sendMessage(color("&cНеверный UUID игрока."));
+                    player.sendMessage(lang("messages.invalid-player-uuid", "&cInvalid player UUID."));
                 }
                 
                 return true;
@@ -195,7 +204,7 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (command.getName().equalsIgnoreCase("ac")) {
             if (args.length == 1) {
-                return Collections.singletonList("[ТЕКСТ]");
+                return Collections.singletonList("<message>");
             }
         }
         return Collections.emptyList();
@@ -236,7 +245,8 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         // Отправляем ответ игроку
         Player ticketPlayer = Bukkit.getPlayer(ticket.getPlayerId());
         if (ticketPlayer != null && ticketPlayer.isOnline()) {
-            ticketPlayer.sendMessage(color("&7[Администратор " + player.getName() + "] &f" + message));
+            ticketPlayer.sendMessage(lang("messages.ticket-reply-format", "&7[Staff {admin}] &f{message}",
+                    mapOf("admin", player.getName(), "message", message)));
         }
         
         // Закрываем тикет
@@ -245,7 +255,8 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         // Отменяем отправку сообщения в обычный чат
         event.setCancelled(true);
         
-        player.sendMessage(color("&aВы ответили на тикет от &e" + ticket.getPlayerName() + "&a. Тикет закрыт."));
+        player.sendMessage(lang("messages.ticket-replied", "&aYou replied to the ticket from &e{player}&a. The ticket is now closed.",
+                mapOf("player", ticket.getPlayerName())));
     }
     
     @EventHandler
@@ -262,7 +273,7 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         }
         
         String title = ChatColor.stripColor(event.getView().getTitle());
-        String expectedTitle = ChatColor.stripColor(color(getConfig().getString("messages.ticket-panel-title", "&6Панель тикетов")));
+        String expectedTitle = ChatColor.stripColor(lang("messages.ticket-panel-title", "&6Ticket Panel"));
 
         // Заголовок может содержать пагинацию: "Панель тикетов (1/3)"
         if (!title.startsWith(expectedTitle)) {
@@ -313,27 +324,27 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         try {
             ticketId = UUID.fromString(ticketIdRaw);
         } catch (IllegalArgumentException e) {
-            player.sendMessage(color("&cНе удалось прочитать тикет."));
+            player.sendMessage(lang("messages.ticket-read-error", "&cCould not read the ticket."));
             return;
         }
 
         Ticket ticket = tickets.get(ticketId);
         if (ticket == null || ticket.getStatus() == TicketStatus.CLOSED) {
-            player.sendMessage(color("&cТикет не найден или уже обработан."));
+            player.sendMessage(lang("messages.ticket-not-found-or-processed", "&cTicket not found or already processed."));
             openTicketPanel(player, adminPages.getOrDefault(player.getUniqueId(), 0));
             return;
         }
 
         // Проверяем, может ли администратор принять этот тикет
         if (ticket.getStatus() == TicketStatus.IN_PROGRESS && ticket.getAdminId() != null && !ticket.getAdminId().equals(player.getUniqueId())) {
-            player.sendMessage(color("&cЭтот тикет уже принят другим администратором."));
+            player.sendMessage(lang("messages.ticket-owned-by-other", "&cThis ticket has already been accepted by another staff member."));
             openTicketPanel(player, adminPages.getOrDefault(player.getUniqueId(), 0));
             return;
         }
 
         // Проверяем, есть ли у администратора уже активный тикет
         if (adminTickets.containsKey(player.getUniqueId()) && !adminTickets.get(player.getUniqueId()).equals(ticket.getPlayerId())) {
-            player.sendMessage(color("&cУ вас уже есть активный тикет. Закройте его, чтобы принять новый."));
+            player.sendMessage(lang("messages.admin-has-active-ticket", "&cYou already have an active ticket. Close it before accepting another one."));
             openTicketPanel(player, adminPages.getOrDefault(player.getUniqueId(), 0));
             return;
         }
@@ -353,7 +364,7 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         }
 
         String title = ChatColor.stripColor(event.getView().getTitle());
-        String expectedTitle = ChatColor.stripColor(color(getConfig().getString("messages.ticket-panel-title", "&6Панель тикетов")));
+        String expectedTitle = ChatColor.stripColor(lang("messages.ticket-panel-title", "&6Ticket Panel"));
         if (!title.startsWith(expectedTitle)) {
             return;
         }
@@ -379,7 +390,7 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         tickets.put(playerId, ticket);
         playerTickets.put(playerId, playerId);
         
-        player.sendMessage(color(getConfig().getString("messages.ticket-created", "&aВаш тикет создан!")));
+        player.sendMessage(lang("messages.ticket-created", "&aYour ticket has been created!"));
         
         // Уведомляем всех администраторов
         notifyAdmins(ticket);
@@ -388,14 +399,16 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
     }
     
     private void notifyAdmins(Ticket ticket) {
-        String message = color("&e[Тикет] &cНовый тикет от игрока &e" + ticket.getPlayerName() + "&c!");
+        String message = lang("messages.new-ticket-notify", "&e[Ticket] &cNew ticket from player &e{player}&c!",
+                mapOf("player", ticket.getPlayerName()));
         
         TextComponent mainText = new TextComponent(message);
         
-        TextComponent acceptButton = new TextComponent(color(" &a[Принять]"));
+        TextComponent acceptButton = new TextComponent(lang("messages.accept-button", " &a[Accept]"));
         acceptButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tickets accept " + ticket.getPlayerId()));
         acceptButton.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, 
-            new Text(color("&aНажмите, чтобы принять тикет\n&7Вопрос: &f" + ticket.getQuestion()))));
+            new Text(lang("messages.accept-hover", "&aClick to accept this ticket\n&7Question: &f{question}",
+                    mapOf("question", ticket.getQuestion())))));
         
         TextComponent fullMessage = new TextComponent();
         fullMessage.addExtra(mainText);
@@ -405,26 +418,28 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
             if (isAdmin(admin)) {
                 admin.spigot().sendMessage(fullMessage);
                 if (!isStaffWorkShiftActive(admin)) {
-                    admin.sendMessage(color(getConfig().getString("messages.shift-required-notice",
-                            "&7Чтобы ответить на тикет, сначала включите смену: &e/sw on")));
+                    admin.sendMessage(lang("messages.shift-required-notice",
+                            "&7To answer tickets, start your shift first: &e/sw on"));
                 }
             }
         }
         
         // Также отправляем в консоль
-        getLogger().info("Новый тикет от " + ticket.getPlayerName() + ": " + ticket.getQuestion());
+        getLogger().info(rawLang("logs.new-ticket", "New ticket from {player}: {question}")
+                .replace("{player}", ticket.getPlayerName())
+                .replace("{question}", ticket.getQuestion()));
     }
     
     private void acceptTicket(Ticket ticket, Player admin) {
         // Если тикет уже принят другим администратором
         if (ticket.getStatus() == TicketStatus.IN_PROGRESS && ticket.getAdminId() != null && !ticket.getAdminId().equals(admin.getUniqueId())) {
-            admin.sendMessage(color("&cЭтот тикет уже принят другим администратором."));
+            admin.sendMessage(lang("messages.ticket-owned-by-other", "&cThis ticket has already been accepted by another staff member."));
             return;
         }
         
         // Проверяем, есть ли у администратора уже активный тикет
         if (adminTickets.containsKey(admin.getUniqueId()) && !adminTickets.get(admin.getUniqueId()).equals(ticket.getPlayerId())) {
-            admin.sendMessage(color("&cУ вас уже есть активный тикет. Закройте его, чтобы принять новый."));
+            admin.sendMessage(lang("messages.admin-has-active-ticket", "&cYou already have an active ticket. Close it before accepting another one."));
             return;
         }
         
@@ -438,16 +453,18 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         // Уведомляем игрока
         Player ticketPlayer = Bukkit.getPlayer(ticket.getPlayerId());
         if (ticketPlayer != null && ticketPlayer.isOnline()) {
-            String msg = getConfig().getString("messages.ticket-accepted-player", "&aАдминистратор &e{admin} &aпринял ваш тикет!")
-                    .replace("{admin}", admin.getName());
-            ticketPlayer.sendMessage(color(msg));
-            ticketPlayer.sendMessage(color("&7Ваш вопрос: &f" + ticket.getQuestion()));
-            ticketPlayer.sendMessage(color("&7Ожидайте ответа администратора в чате..."));
+            ticketPlayer.sendMessage(lang("messages.ticket-accepted-player", "&aStaff member &e{admin} &ahas accepted your ticket!",
+                    mapOf("admin", admin.getName())));
+            ticketPlayer.sendMessage(lang("messages.ticket-question-line", "&7Question: &f{question}",
+                    mapOf("question", ticket.getQuestion())));
+            ticketPlayer.sendMessage(lang("messages.wait-for-reply", "&7Please wait for a reply in chat."));
         }
         
-        admin.sendMessage(color("&aВы приняли тикет от &e" + ticket.getPlayerName() + "&a."));
-        admin.sendMessage(color("&7Вопрос: &f" + ticket.getQuestion()));
-        admin.sendMessage(color("&7Напишите ответ в чат, чтобы ответить на тикет."));
+        admin.sendMessage(lang("messages.ticket-accepted-admin", "&aYou accepted the ticket from &e{player}&a.",
+                mapOf("player", ticket.getPlayerName())));
+        admin.sendMessage(lang("messages.ticket-question-line", "&7Question: &f{question}",
+                mapOf("question", ticket.getQuestion())));
+        admin.sendMessage(lang("messages.ticket-reply-in-chat", "&7Write your reply in chat to answer this ticket."));
         
         saveTickets();
     }
@@ -462,11 +479,11 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         // Уведомляем игрока
         Player ticketPlayer = Bukkit.getPlayer(ticket.getPlayerId());
         if (ticketPlayer != null && ticketPlayer.isOnline()) {
-            String msg = getConfig().getString("messages.ticket-closed", "&aВаш тикет закрыт.");
-            ticketPlayer.sendMessage(color(msg));
+            ticketPlayer.sendMessage(lang("messages.ticket-closed", "&aYour ticket has been closed by a staff member."));
         }
         
-        admin.sendMessage(color("&aТикет от &e" + ticket.getPlayerName() + "&a закрыт."));
+        admin.sendMessage(lang("messages.ticket-closed-admin", "&aTicket from &e{player}&a has been closed.",
+                mapOf("player", ticket.getPlayerName())));
         
         saveTickets();
     }
@@ -487,7 +504,7 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         if (page > totalPages - 1) page = totalPages - 1;
         adminPages.put(admin.getUniqueId(), page);
 
-        String baseTitle = color(getConfig().getString("messages.ticket-panel-title", "&6Панель тикетов"));
+        String baseTitle = lang("messages.ticket-panel-title", "&6Ticket Panel");
         String title = baseTitle + color(" &7(" + (page + 1) + "/" + totalPages + ")");
         Inventory inv = Bukkit.createInventory(null, PANEL_SIZE, title);
 
@@ -497,7 +514,7 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         if (openTickets.isEmpty()) {
             ItemStack noTickets = new ItemStack(Material.BARRIER);
             ItemMeta meta = noTickets.getItemMeta();
-            meta.setDisplayName(color(getConfig().getString("messages.no-tickets", "&cНет доступных тикетов.")));
+            meta.setDisplayName(lang("messages.no-tickets", "&cThere are no available tickets."));
             noTickets.setItemMeta(meta);
             inv.setItem(22, noTickets);
         } else {
@@ -507,15 +524,21 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
                 ItemStack item = new ItemStack(Material.PAPER);
                 ItemMeta meta = item.getItemMeta();
 
-                String itemName = getConfig().getString("messages.ticket-item-name", "&eТикет от &c{player}")
-                        .replace("{player}", ticket.getPlayerName());
-                meta.setDisplayName(color(itemName));
+                meta.setDisplayName(lang("messages.ticket-item-name", "&eTicket from &c{player}",
+                        mapOf("player", ticket.getPlayerName())));
 
                 List<String> lore = new ArrayList<>();
-                List<String> configLore = getConfig().getStringList("messages.ticket-item-lore");
+                List<String> configLore = langList("messages.ticket-item-lore", List.of(
+                        "&7Question: &f{question}",
+                        "&7Status: &a{status}",
+                        "",
+                        "&aClick to accept this ticket"
+                ));
                 for (String line : configLore) {
-                    lore.add(color(line.replace("{question}", ticket.getQuestion())
-                            .replace("{status}", ticket.getStatus() == TicketStatus.OPEN ? "Открыт" : "В работе")));
+                    lore.add(color(applyPlaceholders(line, mapOf(
+                            "question", ticket.getQuestion(),
+                            "status", statusName(ticket.getStatus())
+                    ))));
                 }
                 meta.setLore(lore);
 
@@ -528,9 +551,9 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
         }
 
         // Кнопки навигации
-        inv.setItem(SLOT_PREV, navItem(Material.ARROW, "&e< Назад", "prev", page > 0));
-        inv.setItem(SLOT_REFRESH, navItem(Material.SUNFLOWER, "&aОбновить", "refresh", true));
-        inv.setItem(SLOT_NEXT, navItem(Material.ARROW, "&eВперёд >", "next", page < totalPages - 1));
+        inv.setItem(SLOT_PREV, navItem(Material.ARROW, rawLang("messages.nav-prev", "&e< Previous"), "prev", page > 0));
+        inv.setItem(SLOT_REFRESH, navItem(Material.SUNFLOWER, rawLang("messages.nav-refresh", "&aRefresh"), "refresh", true));
+        inv.setItem(SLOT_NEXT, navItem(Material.ARROW, rawLang("messages.nav-next", "&eNext >"), "next", page < totalPages - 1));
 
         admin.openInventory(inv);
     }
@@ -580,10 +603,9 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
             
             long timeSinceLastReminder = System.currentTimeMillis() - ticket.getLastReminder();
             if (timeSinceLastReminder >= reminderInterval) {
-                String msg = getConfig().getString("messages.ticket-reminder-admin", 
-                        "&eУ вас есть активный тикет от игрока &c{player}&e. Ответьте на него!")
-                        .replace("{player}", ticket.getPlayerName());
-                admin.sendMessage(color(msg));
+                admin.sendMessage(lang("messages.ticket-reminder-admin",
+                        "&eYou have an active ticket from player &c{player}&e. Please answer it!",
+                        mapOf("player", ticket.getPlayerName())));
                 ticket.setLastReminder(System.currentTimeMillis());
             }
         }
@@ -621,10 +643,9 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
                 // Уведомляем администратора, если он онлайн
                 Player admin = Bukkit.getPlayer(adminId);
                 if (admin != null && admin.isOnline()) {
-                    String msg = getConfig().getString("messages.ticket-released", 
-                            "&cТикет от игрока &e{player} &cосвобожден, так как вы не ответили.")
-                            .replace("{player}", ticket.getPlayerName());
-                    admin.sendMessage(color(msg));
+                    admin.sendMessage(lang("messages.ticket-released",
+                            "&cTicket from player &e{player} &chas been released because no reply was sent in time.",
+                            mapOf("player", ticket.getPlayerName())));
                 }
             }
             
@@ -637,13 +658,11 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
             // Уведомляем всех администраторов о новом доступном тикете
             notifyAdmins(ticket);
             
-            String msg = getConfig().getString("messages.ticket-released", 
-                    "&cТикет от игрока &e{player} &cосвобожден.")
-                    .replace("{player}", ticket.getPlayerName());
-            
             for (Player admin : Bukkit.getOnlinePlayers()) {
                 if (isAdmin(admin) && !admin.getUniqueId().equals(adminId)) {
-                    admin.sendMessage(color(msg));
+                    admin.sendMessage(lang("messages.ticket-released",
+                            "&cTicket from player &e{player} &chas been released because no reply was sent in time.",
+                            mapOf("player", ticket.getPlayerName())));
                 }
             }
         }
@@ -687,9 +706,9 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
 
         String path = forAccept ? "messages.shift-required-accept" : "messages.shift-required-reply";
         String fallback = forAccept
-                ? "&cЧтобы принимать тикеты, сначала включите смену: &e/sw on"
-                : "&cЧтобы отвечать на тикеты, сначала включите смену: &e/sw on";
-        admin.sendMessage(color(getConfig().getString(path, fallback)));
+                ? "&cTo accept tickets, start your shift first: &e/sw on"
+                : "&cTo reply to tickets, start your shift first: &e/sw on";
+        admin.sendMessage(lang(path, fallback));
         return false;
     }
 
@@ -710,13 +729,93 @@ public class TicketSystemPlugin extends JavaPlugin implements Listener, TabExecu
             Object result = isWorking.invoke(workService, player.getName());
             return result instanceof Boolean && (Boolean) result;
         } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-            getLogger().warning("Не удалось проверить StaffWork смену для " + player.getName() + ": " + e.getMessage());
+            getLogger().warning(rawLang("logs.staffwork-check-failed", "Could not check StaffWork shift for {player}: {error}")
+                    .replace("{player}", player.getName())
+                    .replace("{error}", e.getMessage() == null ? "unknown" : e.getMessage()));
             return true;
         }
     }
     
     private String color(String s) {
         return ChatColor.translateAlternateColorCodes('&', s == null ? "" : s);
+    }
+
+    private void loadLanguage() {
+        currentLanguage = getConfig().getString("language", "en").toLowerCase(Locale.ROOT);
+        File langFile = new File(getDataFolder(), "lang/" + currentLanguage + ".yml");
+        if (!langFile.exists()) {
+            getLogger().warning("Language file not found: " + currentLanguage + ".yml. Falling back to en.yml");
+            currentLanguage = "en";
+            langFile = new File(getDataFolder(), "lang/en.yml");
+        }
+
+        langConfig = YamlConfiguration.loadConfiguration(langFile);
+        try (InputStreamReader reader = new InputStreamReader(
+                Objects.requireNonNull(getResource("lang/en.yml")), StandardCharsets.UTF_8)) {
+            YamlConfiguration defaults = YamlConfiguration.loadConfiguration(reader);
+            langConfig.setDefaults(defaults);
+        } catch (Exception e) {
+            getLogger().warning("Could not load default language file: " + e.getMessage());
+        }
+    }
+
+    private void saveBundledLanguage(String language) {
+        File langFile = new File(getDataFolder(), "lang/" + language + ".yml");
+        if (!langFile.exists()) {
+            saveResource("lang/" + language + ".yml", false);
+        }
+    }
+
+    private String lang(String path, String fallback) {
+        return color(rawLang(path, fallback));
+    }
+
+    private String lang(String path, String fallback, Map<String, String> placeholders) {
+        return color(applyPlaceholders(rawLang(path, fallback), placeholders));
+    }
+
+    private String rawLang(String path, String fallback) {
+        if (langConfig == null) {
+            return fallback;
+        }
+        return langConfig.getString(path, fallback);
+    }
+
+    private List<String> langList(String path, List<String> fallback) {
+        if (langConfig == null) {
+            return fallback;
+        }
+        List<String> value = langConfig.getStringList(path);
+        return value == null || value.isEmpty() ? fallback : value;
+    }
+
+    private String applyPlaceholders(String text, Map<String, String> placeholders) {
+        String out = text == null ? "" : text;
+        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+            out = out.replace("{" + entry.getKey() + "}", entry.getValue() == null ? "" : entry.getValue());
+        }
+        return out;
+    }
+
+    private Map<String, String> mapOf(String... values) {
+        Map<String, String> map = new HashMap<>();
+        for (int i = 0; i + 1 < values.length; i += 2) {
+            map.put(values[i], values[i + 1]);
+        }
+        return map;
+    }
+
+    private String statusName(TicketStatus status) {
+        switch (status) {
+            case OPEN:
+                return rawLang("statuses.open", "Open");
+            case IN_PROGRESS:
+                return rawLang("statuses.in-progress", "In Progress");
+            case CLOSED:
+                return rawLang("statuses.closed", "Closed");
+            default:
+                return status.name();
+        }
     }
     
     private void loadTickets() {

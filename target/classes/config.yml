@@ -1,33 +1,16 @@
-# Настройки системы тикетов
+# Main plugin settings
 
-# Права доступа (permission) для администраторов
+# Default plugin language.
+# Built-in languages:
+# - en
+# - ru
+language: en
+
+# Permission node for staff members
 admin-permission: ticketsystem.admin
 
-# Время в секундах, через которое администратору напомнят о тикете
+# Time in seconds before a staff member gets a reminder about an active ticket
 reminder-interval: 60
 
-# Время в секундах, через которое тикет автоматически освобождается от администратора
+# Time in seconds before an accepted ticket is released automatically
 auto-release-time: 300
-
-# Сообщения
-messages:
-  ticket-created: "&aВаш тикет создан! Ожидайте ответа администратора."
-  ticket-exists: "&cУ вас уже есть активный тикет. Дождитесь ответа администратора."
-  ticket-accepted-player: "&aАдминистратор &e{admin} &aпринял ваш тикет!"
-  ticket-closed: "&aВаш тикет закрыт администратором."
-  ticket-reminder-admin: "&eУ вас есть активный тикет от игрока &c{player}&e. Ответьте на него!"
-  ticket-released: "&cТикет от игрока &e{player} &cосвобожден, так как администратор не ответил."
-  no-ticket: "&cУ вас нет активного тикета."
-  admin-only: "&cЭта команда доступна только администраторам."
-  shift-required-notice: "&7Чтобы отвечать на тикеты, сначала включите смену: &e/sw on"
-  shift-required-accept: "&cЧтобы принимать тикеты, сначала включите смену: &e/sw on"
-  shift-required-reply: "&cЧтобы отвечать на тикеты, сначала включите смену: &e/sw on"
-  ticket-panel-title: "&6Панель тикетов"
-  ticket-item-name: "&eТикет от &c{player}"
-  ticket-item-lore:
-    - "&7Вопрос: &f{question}"
-    - "&7Статус: &a{status}"
-    - ""
-    - "&aНажмите, чтобы принять тикет"
-  no-tickets: "&cНет доступных тикетов."
-
